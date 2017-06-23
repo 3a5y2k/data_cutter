@@ -1,0 +1,182 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+###
+# Dataset cuting of target size
+# Parm: createoption: filelist, pysicial paket
+#       size: mb, piccount
+#       output: path
+###
+
+
+
+import tarfile
+#import path
+import sys
+import time
+import os
+import re
+import io
+import string
+import pprint
+import numpy as np
+
+class data_loader:
+    def __init__(self,source, option, size, path = None, spec_pat = None):
+        self.source = source
+        self.tar = tarfile.open(self.source,'r|gz')
+        # open archiv
+        #    'r:gz'       open for reading with gzip compression        # slow: is to testing 3.4475 read
+        #    'r|gz'       open a gzip compressed stream of tar blocks   # fast: 2.09388000965 read, ?? no seeking fileheader like manuel ??
+        #tar = tarfile.open(mode = 'r:gz', fileobj = file(self.source))
+        if path == None:        
+            self.path = './out.list'
+        else:
+            self.path = path
+            if size < 1:
+                self.size = 100
+            self.option = option
+        if spec_pat == None:
+			self.spec_pat = ['((<Species>){1}(.*?)(<\/Species>){1})','((<Sub-species>){1}(.*?)(<\/Sub-species>){1})']
+        else:
+			self.spec_pat = spec_pat
+    def __exit__(self):
+	    # close archiv
+        self.tar.close()
+		
+			
+	# not teted
+    def save_data_info(self):    
+        with tarfile.open(self.source, 'r:gz') as tfile:
+            with tfile.extractfile(self.path) as target_file:
+                data = target_file.read()
+	def load_data_info(self,member):
+		
+		return 1
+	
+    def sfile_reader(self,member_info):
+        print "SReader"
+        self.tar = tarfile.open(self.source,'r:gz')
+        t_start = time.time()
+        t_file = time.time()
+        #file_info = self.tar.getmember(member_name)
+        t_info = time.time()
+        file_st = self.tar.extractfile(member_info)
+        t_pack = time.time()
+        if file_st:
+			data = file_st.read()
+			file_st.close()
+			t_ende = time.time()
+			print t_start, " oeffnen: ", (t_file-t_start), " Info ab: ", (t_info-t_file), " enpacken: ", (t_pack-t_info), " lesen:", (t_pack-t_ende), "gesamt: ", (t_ende-t_start), " Size KByte: ", (member_info.size/1024)
+			return data
+        else:
+			return False
+    def file_reader(self,member_name):
+        print "Reader"
+        t_start = time.time()
+        tar = tarfile.open(self.source,'r:gz')
+        t_file = time.time()
+        file_info = tar.getmember(member_name)
+        t_info = time.time()
+        file_st = tar.extractfile(file_info)
+        t_pack = time.time()
+        if file_st:
+			data = file_st.read()
+			tar.close()
+			file_st.close()
+			t_ende = time.time()
+			print t_start, " oeffnen: ", (t_file-t_start), " Info ab: ", (t_info-t_file), " enpacken: ", (t_pack-t_info), " lesen:", (t_pack-t_ende), "gesamt: ", (t_ende-t_start), " Size KByte: ", (member_info.size/1024)
+			return data
+        else:
+			return False
+		
+		
+		
+		
+    def get_out_data_info(self):
+        
+        
+        self.test_xml_list = []
+        self.train_xml_list = []
+        self.wav_list = []
+		
+		# iter all file ain archiv
+        for tarinfo in self.tar:
+            #print tarinfo.name #, "is", tarinfo.size, "bytes in size and is",
+			# is file 
+            if tarinfo.isreg():
+				# is xml
+				s_rep = re.findall('(.*?)(.xml)',tarinfo.name)
+				if s_rep:
+					# load file content
+					tmp_file = self.tar.extractfile(tarinfo)
+					if tmp_file:
+						data = tmp_file.read()
+						# pattern list for filtering, gen regex by array
+						spec_erg = []
+						for spec in self.spec_pat:
+							tmp = re.findall(spec,data)
+							if tmp:
+								spec_erg.append(tmp)
+
+						if len(spec_erg) > 0:
+							# add to triningslist
+							#print "Triningsdaten :", tarinfo.name, " Size:" ,tarinfo.size, "Pattern: ", spec_erg
+							#print "Species:", s_rep , "Sub-sep:" ,ss_rep, " ALen: ",len(ss_rep)
+							data_info = [tarinfo.name, tarinfo.size, spec_erg]
+							self.train_xml_list.append(data_info)
+						else:
+							# add to testlist
+							data_info = [tarinfo.name, tarinfo.size]
+							self.test_xml_list.append(data_info)
+							#print "Testdaten :", tarinfo.name, " Size:" ,tarinfo.size
+						
+				else:
+					s_rep = re.findall('(.*?)(.wav)|(.mp3)',tarinfo.name)
+					if s_rep:
+						#print "wave file"
+						data_info = [tarinfo.name, tarinfo.size, tarinfo]
+						self.wav_list.append(data_info)
+						# generate wav list
+					else:
+						continue
+
+        print "Sound-Files was found: ", len(self.wav_list), " Testdatenssetze gefunden: ", len(self.test_xml_list), "Trainingsdaten: ", len(self.train_xml_list)
+
+# testing		
+t_t_ges = 0
+t_id = 0
+run_count = 1
+read_count = 100
+while t_id < run_count:
+	t_start = time.time()
+	#  C:\Users\guda_pk\workspace\data_cutter\
+	zip_path = "D:\users\common\DeepLearning\BirdCLEF2017_TUC\Unpacked\mini_representative.tar.gz"
+	bzip_path = "D:\users\common\DeepLearning\BirdCLEF2017_TUC\RawData\BirdCLEF2017Test.tar.gz"
+	list_path = "test_list.txt"
+	size = 50*1024
+	
+	spec_pat = ['((<Species>){1}(.*?)(<\/Species>){1})','((<Sub-species>){1}(.*?)(<\/Sub-species>){1})']
+	
+	# Archiv Indexing
+	data = data_loader(bzip_path, 'list', size, list_path, spec_pat)
+	t_load = time.time()
+	print data.source, "\n"
+	data.get_out_data_info()
+	t_overview = time.time()
+	test_file = data.wav_list[0]
+	
+	#data.file_reader('test/WithoutTimeCodes/LIFECLEF2017_BIRD_SOUNDSCAPE_WAV_RN49845.wav')
+
+	#data.file_reader(test_file[0])
+	i = 0
+	while i < len(data.wav_list) and i < read_count:
+		data.sfile_reader(data.wav_list[i][2])
+		i += 1
+	
+	t_ges = t_overview - t_start
+	print "Gestartet: ", t_start, " GEoeffnet: ", t_load-t_start , "Uebersicht erstellt: " , t_overview-t_load, "Gesamtzeit: ", t_ges 
+	t_t_ges += t_ges
+	#data.write_test()
+	t_id +=1
+print "Gesamtzeit fuer Durchhlauf: ", t_t_ges ," durch. Zeit:",(t_t_ges/run_count)
